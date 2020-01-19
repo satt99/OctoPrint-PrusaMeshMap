@@ -35,8 +35,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
 						mesh_xmin = 35,
 						mesh_xmax = 240,
 						mesh_ymin = 6,
-						mesh_ymax = 198,
-						offset = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+						mesh_ymax = 198
         )
 
     ##~~ AssetPlugin mixin
@@ -153,8 +152,6 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
 
         self._logger.info("Generating heatmap")
 
-        # TODO: Validate each row has MESH_NUM_POINTS_X values
-
         mesh_values = []
 
         # Parse response lines into a 2D array of floats in row-major order
@@ -172,12 +169,10 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         bed_variance = round(mesh_z.max() - mesh_z.min(), 3)
 
         # calculate offset at screw positions
-        screw_x, screw_y = np.meshgrid(X_SCREW,Y_SCREW)
         offset = mesh_func(X_SCREW, Y_SCREW)
         z_center = offset[1,1]
         offset -= z_center # relative to center
         offset *= 360 / 0.5 # 0.5mm per turn
-        self._settings.set(["offset"], np.flipud(offset).ravel().tolist())
 
         ############
         # Draw the heatmap
@@ -187,14 +182,11 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         # Plot all mesh points
         plt.plot(mesh_x.ravel(), mesh_y.ravel(), 'o', color='m', ms=10)
 
-
         # Draw screw positions
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
         for i, x in enumerate(X_SCREW):
             for j, y in enumerate(Y_SCREW):
                 ax.text(x, y, format(offset[j,i],'.1f')+'$\degree$', bbox=props, fontsize=20, ha='center', va='center')
-        # plt.plot(screw_x.ravel(), screw_y.ravel(), 'x', color='r', ms=10)
-
 
         # Draw the contour map
         contour = plt.contourf(mesh_x, mesh_y, mesh_z, alpha=.75, antialiased=True, cmap=plt.cm.get_cmap(self._settings.get(["matplotlib_heatmap_theme"])))
