@@ -35,7 +35,8 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
 						mesh_xmin = 35,
 						mesh_xmax = 240,
 						mesh_ymin = 6,
-						mesh_ymax = 198
+						mesh_ymax = 198,
+						offset = [0, 1, 2, 3, 4, 5, 6, 7, 8]
         )
 
     ##~~ AssetPlugin mixin
@@ -128,18 +129,6 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         BED_SIZE_X = 250
         BED_SIZE_Y = 210
 
-        # These values come from mesh_bed_calibration.cpp
-        BED_PRINT_ZERO_REF_X = 2
-        BED_PRINT_ZERO_REF_Y = 9.4
-
-        # Mesh probe points, in print area coordinates
-        # We assume points are symmetrical (i.e a rectangular grid)
-        MESH_FRONT_LEFT_X = 37 - BED_PRINT_ZERO_REF_X
-        MESH_FRONT_LEFT_Y = 18.4 - BED_PRINT_ZERO_REF_Y
-
-        MESH_REAR_RIGHT_X = 245 - BED_PRINT_ZERO_REF_X
-        MESH_REAR_RIGHT_Y = 210.4 - BED_PRINT_ZERO_REF_Y
-
         # Offset of the marked print area on the steel sheet relative to
         # the marked print area on the MK52. The steel sheet has margins
         # outside of the print area, so we need to account for that too.
@@ -149,7 +138,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         # However, we want to show the user a view that looks lined up with the MK52, so we
         # ignore this and set the value to zero.
         SHEET_OFFS_Y = 0
-                            #
+
         SHEET_MARGIN_LEFT = 0
         SHEET_MARGIN_RIGHT = 0
         # The SVG of the steel sheet (up on Github) is not symmetric as the actual one is
@@ -182,13 +171,30 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         mesh_func = interp2d(x, y, mesh_z, kind='linear')
         bed_variance = round(mesh_z.max() - mesh_z.min(), 3)
 
+        # calculate offset at screw positions
+        screw_x, screw_y = np.meshgrid(X_SCREW,Y_SCREW)
+        offset = mesh_func(X_SCREW, Y_SCREW)
+        z_center = offset[1,1]
+        offset -= z_center # relative to center
+        offset *= 360 / 0.5 # 0.5mm per turn
+        self._settings.set(["offset"], np.flipud(offset).ravel().tolist())
+
         ############
         # Draw the heatmap
         fig = plt.figure(dpi=96, figsize=(10,8.3))
         ax = plt.gca()
 
         # Plot all mesh points
-        plt.plot(mesh_x.ravel(), mesh_y.ravel(), 'o', color='m')
+        plt.plot(mesh_x.ravel(), mesh_y.ravel(), 'o', color='m', ms=10)
+
+
+        # Draw screw positions
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+        for i, x in enumerate(X_SCREW):
+            for j, y in enumerate(Y_SCREW):
+                ax.text(x, y, f'{offset[j,i]:.1f}$\degree$', bbox=props, fontsize=20, ha='center', va='center')
+        # plt.plot(screw_x.ravel(), screw_y.ravel(), 'x', color='r', ms=10)
+
 
         # Draw the contour map
         contour = plt.contourf(mesh_x, mesh_y, mesh_z, alpha=.75, antialiased=True, cmap=plt.cm.get_cmap(self._settings.get(["matplotlib_heatmap_theme"])))
