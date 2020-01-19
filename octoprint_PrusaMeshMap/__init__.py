@@ -35,7 +35,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
                                                 mesh_xmin = 35,
                                                 mesh_xmax = 240,
                                                 mesh_ymin = 6,
-                                                mesh_ymax = 18
+                                                mesh_ymax = 198
         )
 
     ##~~ AssetPlugin mixin
