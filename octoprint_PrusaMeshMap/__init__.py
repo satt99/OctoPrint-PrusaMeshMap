@@ -97,6 +97,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
             else:
                 if self.checking_responses and not re.match(r"^(  -?\d+.\d+)+$", line): # end of mesh report
                     self.mesh_level_generate()
+                    self.checking_responses = False
                 return line
 
     ##~~ Mesh Bed Level Heatmap Generation
