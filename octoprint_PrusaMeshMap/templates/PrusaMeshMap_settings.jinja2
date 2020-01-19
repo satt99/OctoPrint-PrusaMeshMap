@@ -18,4 +18,32 @@
             <span class="help-inline">See <a href="https://matplotlib.org/examples/color/colormaps_reference.html" target="matplotlib-colors">colormap reference</a> for previews.</span>
         </div>
     </div>
+    <h3>Probe Positions</h3>
+    <p>
+    Specify the minimum and maximum coordinates that are probed (same as mesh_min, mesh_max in klipper cfg file).
+    </p>
+    <div class="control-group">
+        <label class="control-label">Mesh xmin</label>
+        <div class="controls">
+            <textarea rows="1" class="block" data-bind="value: settingsViewModel.settings.plugins.PrusaMeshMap.mesh_xmin"></textarea>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">Mesh xmax</label>
+        <div class="controls">
+            <textarea rows="1" class="block" data-bind="value: settingsViewModel.settings.plugins.PrusaMeshMap.mesh_xmax"></textarea>
+        </div>
+    </div>
+        <div class="control-group">
+        <label class="control-label">Mesh ymin</label>
+        <div class="controls">
+            <textarea rows="1" class="block" data-bind="value: settingsViewModel.settings.plugins.PrusaMeshMap.mesh_ymin"></textarea>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">Mesh ymax</label>
+        <div class="controls">
+            <textarea rows="1" class="block" data-bind="value: settingsViewModel.settings.plugins.PrusaMeshMap.mesh_ymax"></textarea>
+        </div>
+    </div>
 </form>

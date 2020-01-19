@@ -32,10 +32,10 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         return dict(
                         do_level_gcode = 'G28 W ; home all without mesh bed level\nG80 ; mesh bed leveling\nG81 ; check mesh leveling results',
                         matplotlib_heatmap_theme = 'viridis',
-                                                mesh_xmin = 35,
-                                                mesh_xmax = 240,
-                                                mesh_ymin = 6,
-                                                mesh_ymax = 198
+						mesh_xmin = 35,
+						mesh_xmax = 240,
+						mesh_ymin = 6,
+						mesh_ymax = 198
         )
 
     ##~~ AssetPlugin mixin
