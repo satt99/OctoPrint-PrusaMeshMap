@@ -192,7 +192,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
         for i, x in enumerate(X_SCREW):
             for j, y in enumerate(Y_SCREW):
-                ax.text(x, y, f'{offset[j,i]:.1f}$\degree$', bbox=props, fontsize=20, ha='center', va='center')
+                ax.text(x, y, format(offset[j,i],'.1f')+'$\degree$', bbox=props, fontsize=20, ha='center', va='center')
         # plt.plot(screw_x.ravel(), screw_y.ravel(), 'x', color='r', ms=10)
 
 
