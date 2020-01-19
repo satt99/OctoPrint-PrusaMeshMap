@@ -15,6 +15,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from scipy.interpolate import intep2d
 import re
 import octoprint.plugin
 import octoprint.printer
@@ -30,7 +31,11 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
 	def get_settings_defaults(self):
 		return dict(
                         do_level_gcode = 'G28 W ; home all without mesh bed level\nG80 ; mesh bed leveling\nG81 ; check mesh leveling results',
-                        matplotlib_heatmap_theme = 'viridis'
+                        matplotlib_heatmap_theme = 'viridis',
+												mesh_xmin = 35,
+												mesh_xmax = 240,
+												mesh_ymin = 6,
+												mesh_ymax = 18
 		)
 
 	##~~ AssetPlugin mixin
@@ -44,7 +49,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
 			less=["less/PrusaMeshMap.less"],
                         img_heatmap=["img/heatmap.png"]
 		)
-                
+
 	##~~ TemplatePlugin mixin
 
         #def get_template_configs(self):
@@ -52,7 +57,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
         #                dict(type="navbar", custom_bindings=False),
         #                dict(type="settings", custom_bindings=False)
         #        ]
-        
+
         ##~~ EventHandlerPlugin mixin
 
         def on_event(self, event, payload):
@@ -85,15 +90,17 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
 
         def mesh_level_check(self, comm, line, *args, **kwargs):
                 if re.match(r"^(  -?\d+.\d+)+$", line):
+					self.checking_responses = True
                     self.mesh_level_responses.append(line)
                     self._logger.info("FOUND: " + line)
-                    self.mesh_level_generate()
                     return line
                 else:
+                    if self.checking_responses and not re.match(r"^(  -?\d+.\d+)+$", line): # end of mesh report
+                        self.mesh_level_generate()
                     return line
 
         ##~~ Mesh Bed Level Heatmap Generation
-
+		checking_responses = False
         mesh_level_responses = []
 
         def mesh_level_generate(self):
@@ -105,10 +112,18 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
             # Points are measured from the middle of the PINDA / middle of the
             # 4 probe circles on the MK52.
 
-            MESH_NUM_POINTS_X = 7
-            MESH_NUM_MEASURED_POINTS_X = 3
-            MESH_NUM_POINTS_Y = 7
-            MESH_NUM_MEASURED_POINTS_Y = 3
+			# add support for arbitraery probe points
+			# probe points [mm]
+			MESH_XMIN = self._settings.get(["mesh_xmin"]
+			MESH_XMAX = self._settings.get(["mesh_xmax"]
+			MESH_YMIN = self._settings.get(["mesh_ymin"]
+			MESH_YMAX = self._settings.get(["mesh_ymax"]
+
+			# screw positions [mm]
+			X_SCREW = (15, 125, 235)
+			Y_SCREW = (0, 105, 210)
+
+			# calculate position of sheet
             BED_SIZE_X = 250
             BED_SIZE_Y = 210
 
@@ -133,7 +148,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
             # However, we want to show the user a view that looks lined up with the MK52, so we
             # ignore this and set the value to zero.
             SHEET_OFFS_Y = 0
-                               # 
+                               #
             SHEET_MARGIN_LEFT = 0
             SHEET_MARGIN_RIGHT = 0
             # The SVG of the steel sheet (up on Github) is not symmetric as the actual one is
@@ -166,47 +181,25 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
                     response = re.sub(r"^[ ]+", "", response)
                     response = re.sub(r"[ ]+", ",", response)
                     mesh_values.append([float(i) for i in response.split(",")])
+				mesh_z = np.flipud(np.array(mesh_values)) # first row of response is ymax, so flip it to last row
 
-                # Generate a 2D array of the Z values in column-major order
-                col_i = 0
-                mesh_z = np.zeros(shape=(7,7))
-                for col in mesh_values:
-                    row_i = 0
-                    for val in col:
-                        mesh_z[col_i][row_i] = val
-                        row_i = row_i + 1
-                    col_i = col_i + 1
-
-                # Calculate the X and Y values of the mesh bed points, in print area coordinates
-                mesh_x = np.zeros(MESH_NUM_POINTS_X)
-                for i in range(0, MESH_NUM_POINTS_X):
-                    mesh_x[i] = MESH_FRONT_LEFT_X + mesh_delta_x*i
-
-                mesh_y = np.zeros(MESH_NUM_POINTS_Y)
-                for i in range(0, MESH_NUM_POINTS_Y):
-                    mesh_y[i] = MESH_FRONT_LEFT_Y + mesh_delta_y*i
-
+				# define an interpolatoin function of the mesh
+				x = np.linspace(MESH_XMIN, MESH_XMAX, mesh_z.shape[1])
+				y = np.linspace(MESH_YMIN, MESH_YMAX, mesh_z.shape[0])
+				mesh_x, mesh_y = np.meshgrid(x,y)
+				mesh_func = interp2d(x, y, mesh_z, kind='linear')
                 bed_variance = round(mesh_z.max() - mesh_z.min(), 3)
 
                 ############
                 # Draw the heatmap
-                #fig = plt.figure(dpi=96, figsize=(12, 9))
                 fig = plt.figure(dpi=96, figsize=(10,8.3))
                 ax = plt.gca()
 
-                # Plot all mesh points, including measured ones and the ones
-                # that are bogus (calculated). Indicate the actual measured
-                # points with a different marker.
-                for x_i in range(0, len(mesh_x)):
-                    for y_i in range(0, len(mesh_y)):
-                        if ((x_i % MESH_NUM_MEASURED_POINTS_X) == 0) and ((y_i % MESH_NUM_MEASURED_POINTS_Y) == 0):
-                            plt.plot(mesh_x[x_i], mesh_y[y_i], 'o', color='m')
-                        else:
-                            plt.plot(mesh_x[x_i], mesh_y[y_i], '.', color='k')
+				# Plot all mesh points
+				plt.plot(mesh_x.ravel(), mesh_y.ravel(), 'o', color='m')
 
-                # Draw the contour map. Y values are reversed to account for
-                # bottom-up orientation of plot library
-                contour = plt.contourf(mesh_x, mesh_y[::-1], mesh_z, alpha=.75, antialiased=True, cmap=plt.cm.get_cmap(self._settings.get(["matplotlib_heatmap_theme"])))
+				# Draw the contour map
+				contour = plt.contourf(mesh_x, mesh_y, mesh_z, alpha=.75, antialiased=True, cmap=plt.cm.get_cmap(self._settings.get(["matplotlib_heatmap_theme"])))
 
                 # Insert the background image (currently an image of the MK3 PEI-coated steel sheet)
                 img = mpimg.imread(self.get_asset_folder() + '/img/mk52_steel_sheet.png')
@@ -229,7 +222,7 @@ class PrusameshmapPlugin(octoprint.plugin.SettingsPlugin,
 
                 #plt.colorbar(label="Bed Variance: " + str(round(mesh_z.max() - mesh_z.min(), 3)) + "mm")
                 plt.colorbar(contour, label="Measured Level (mm)")
-                
+
                 plt.text(0.5, 0.43, "Total Bed Variance: " + str(bed_variance) + " (mm)", fontsize=10, horizontalalignment='center', verticalalignment='center', transform=ax.transAxes, bbox=dict(facecolor='#eeefff', alpha=0.5))
 
                 # Save our graph as an image in the current directory.
